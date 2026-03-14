@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Sheet Cutting Optimizer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>2D Sheet Cutting Optimizer</h1>
+        <p class="subtitle">Auto-fill sheets with optimal piece quantities &mdash; gap &amp; kerf aware</p>
+    </header>
+
+    <main>
+        <!-- ─── Input Section ─────────────────────────────────────────── -->
+        <section class="card" id="inputSection">
+            <h2>Sheet &amp; Constraints</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sheetW">Sheet Width</label>
+                    <input type="number" id="sheetW" min="1" step="any" placeholder="e.g. 1000">
+                </div>
+                <div class="form-group">
+                    <label for="sheetH">Sheet Height</label>
+                    <input type="number" id="sheetH" min="1" step="any" placeholder="e.g. 600">
+                </div>
+                <div class="form-group">
+                    <label for="gap">Gap Between Pieces</label>
+                    <input type="number" id="gap" min="0" step="any" value="0" placeholder="e.g. 2">
+                </div>
+                <div class="form-group">
+                    <label for="kerf">Kerf Width</label>
+                    <input type="number" id="kerf" min="0" step="any" value="0" placeholder="e.g. 3">
+                </div>
+                <div class="form-group">
+                    <label for="boundaryMargin">Boundary Margin</label>
+                    <input type="number" id="boundaryMargin" min="0" step="any" value="0" placeholder="e.g. 5">
+                </div>
+                <div class="form-group">
+                    <label for="topN">Top N Layouts</label>
+                    <input type="number" id="topN" min="1" max="50" value="10">
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="allowRotation" checked>
+                        Allow Rotation (90&deg;)
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group" style="flex: 2 1 260px">
+                    <label for="algoMode">Algorithm</label>
+                    <select id="algoMode">
+                        <option value="fast">Fast &mdash; Heuristic sweep (instant)</option>
+                        <option value="advanced" selected>Advanced &mdash; GA + Simulated Annealing (2-5 sec)</option>
+                    </select>
+                </div>
+            </div>
+
+            <h2>Piece Sizes <small>(algorithm decides quantities to fill the sheet)</small></h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="rectLabel">Label</label>
+                    <input type="text" id="rectLabel" placeholder="e.g. Panel A" maxlength="40">
+                </div>
+                <div class="form-group">
+                    <label for="rectW">Width</label>
+                    <input type="number" id="rectW" min="0.1" step="any" placeholder="Width">
+                </div>
+                <div class="form-group">
+                    <label for="rectH">Height</label>
+                    <input type="number" id="rectH" min="0.1" step="any" placeholder="Height">
+                </div>
+                <div class="form-group btn-group">
+                    <button class="btn btn-primary" id="addRect">Add Size</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table id="rectTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Label</th>
+                            <th>Width</th>
+                            <th>Height</th>
+                            <th>Area</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="rectTableBody">
+                        <tr><td colspan="6" class="empty-msg">No piece sizes added yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="action-row">
+                <button class="btn btn-secondary" id="loadDemo">Load Demo Sizes</button>
+                <button class="btn btn-secondary" id="loadSample">Load Sample Project</button>
+                <button class="btn btn-danger" id="clearRects">Clear All</button>
+                <button class="btn btn-primary btn-lg" id="optimizeBtn">Fill &amp; Optimize</button>
+            </div>
+        </section>
+
+        <!-- ─── Results Section ───────────────────────────────────────── -->
+        <section class="card hidden" id="results">
+            <h2>Optimization Results</h2>
+
+            <div class="results-container">
+                <!-- Layout list sidebar -->
+                <div id="layoutList" class="layout-list"></div>
+
+                <!-- Main visualization area -->
+                <div class="visualization">
+                    <div id="canvasWrap" class="canvas-wrap">
+                        <canvas id="packingCanvas"></canvas>
+                    </div>
+
+                    <div id="layoutInfo" class="layout-info"></div>
+
+                    <div class="export-row">
+                        <button class="btn btn-secondary" id="exportCSV">Export Layout CSV</button>
+                        <button class="btn btn-secondary" id="exportPNG">Export Layout PNG</button>
+                        <button class="btn btn-secondary" id="exportAllCSV">Export All Layouts CSV</button>
+                    </div>
+
+                    <div id="quantitySummary" class="quantity-summary"></div>
+
+                    <h3>Placement Details</h3>
+                    <div class="table-wrap">
+                        <table id="placementTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Label</th>
+                                    <th>Position (x, y)</th>
+                                    <th>Size (w × h)</th>
+                                    <th>Rotated</th>
+                                    <th>Area</th>
+                                </tr>
+                            </thead>
+                            <tbody id="placementTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>2D Cutting Stock / Bin Packing Optimizer &mdash; MaxRects, Guillotine &amp; Shelf algorithms with kerf &amp; gap support</p>
+    </footer>
+
+    <!-- Progress overlay -->
+    <div id="progressOverlay" class="progress-overlay hidden">
+        <div class="progress-box">
+            <h3 id="progressTitle">Optimizing...</h3>
+            <div class="progress-bar-wrap">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="progressDetail" class="progress-detail"></p>
+            <p id="progressFitness" class="progress-fitness"></p>
+        </div>
+    </div>
+
+    <script src="js/packer.js"></script>
+    <script src="js/optimizer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
