@@ -95,6 +95,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ─── Sheet CSV Import ────────────────────────────────────────────────────
+
+    const importSheetsBtn  = document.getElementById('importSheetsBtn');
+    const importSheetsFile = document.getElementById('importSheetsFile');
+
+    importSheetsBtn.addEventListener('click', () => importSheetsFile.click());
+
+    importSheetsFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const rows = parseCSV(ev.target.result);
+            let added = 0;
+            for (const row of rows) {
+                const [label, wStr, hStr] = row;
+                const w = parseFloat(wStr);
+                const h = parseFloat(hStr);
+                if (w > 0 && h > 0) {
+                    state.sheets.push({
+                        id: state.nextSheetId++,
+                        w, h,
+                        label: (label || '').trim() || `Sheet ${state.nextSheetId - 1}`
+                    });
+                    added++;
+                }
+            }
+            renderSheetTable();
+            importSheetsFile.value = '';
+            if (added > 0) showToast(`Imported ${added} master sheet(s).`);
+            else showToast('No valid rows found. Expected: Label, Width, Height', 'error');
+        };
+        reader.readAsText(file);
+    });
+
     // ─── Piece Size Management ───────────────────────────────────────────────
 
     addRectBtn.addEventListener('click', () => {
@@ -164,6 +199,66 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             rectTableBody.appendChild(tr);
         });
+    }
+
+    // ─── Piece CSV Import ────────────────────────────────────────────────────
+
+    const importPiecesBtn  = document.getElementById('importPiecesBtn');
+    const importPiecesFile = document.getElementById('importPiecesFile');
+
+    importPiecesBtn.addEventListener('click', () => importPiecesFile.click());
+
+    importPiecesFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const rows = parseCSV(ev.target.result);
+            let added = 0;
+            for (const row of rows) {
+                const [label, wStr, hStr] = row;
+                const w = parseFloat(wStr);
+                const h = parseFloat(hStr);
+                if (w > 0 && h > 0) {
+                    const dup = state.pieceSizes.find(s => s.w === w && s.h === h);
+                    if (!dup) {
+                        state.pieceSizes.push({
+                            id: state.nextId++,
+                            w, h,
+                            label: (label || '').trim() || `Size ${state.nextId - 1}`
+                        });
+                        added++;
+                    }
+                }
+            }
+            renderRectTable();
+            importPiecesFile.value = '';
+            if (added > 0) showToast(`Imported ${added} piece size(s).`);
+            else showToast('No valid rows found. Expected: Label, Width, Height', 'error');
+        };
+        reader.readAsText(file);
+    });
+
+    // ─── CSV Parser ──────────────────────────────────────────────────────────
+
+    function parseCSV(text) {
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        const rows = [];
+        for (const line of lines) {
+            // Skip header rows
+            if (/^(label|name|sheet)/i.test(line)) continue;
+            // Split by comma or tab
+            const cells = line.split(/[,\t]+/).map(c => c.trim().replace(/^["']|["']$/g, ''));
+            if (cells.length >= 2) {
+                // If only 2 columns, treat as Width, Height with auto label
+                if (cells.length === 2) {
+                    rows.push(['', cells[0], cells[1]]);
+                } else {
+                    rows.push(cells);
+                }
+            }
+        }
+        return rows;
     }
 
     // ─── Optimization ────────────────────────────────────────────────────────

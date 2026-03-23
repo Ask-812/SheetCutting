@@ -113,6 +113,18 @@ main {
 }
 .btn-group {
     justify-content: flex-end;
+    gap: .4rem;
+}
+.import-hint {
+    font-size: .75rem;
+    color: var(--text-muted);
+    margin: .15rem 0 .5rem;
+}
+.import-hint code {
+    background: #f1f5f9;
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    font-size: .72rem;
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────────── */
