@@ -127,6 +127,10 @@
                 <button class="btn btn-danger" id="clearRects">Clear All</button>
                 <button class="btn btn-primary btn-lg" id="optimizeBtn">Fill &amp; Optimize</button>
             </div>
+            <div class="action-row" style="margin-top:.5rem">
+                <button class="btn btn-secondary" id="saveProjectBtn">&#128190; Save Project</button>
+                <button class="btn btn-secondary" id="loadProjectBtn">&#128194; Load Project</button>
+            </div>
         </section>
 
         <!-- ─── Results Section ───────────────────────────────────────── -->
@@ -197,5 +201,6 @@
     <!-- Hidden file inputs for CSV import (at body level to avoid click issues) -->
     <input type="file" id="importSheetsFile" accept=".csv,.tsv,.txt" style="display:none">
     <input type="file" id="importPiecesFile" accept=".csv,.tsv,.txt" style="display:none">
+    <input type="file" id="loadProjectFile" accept=".json" style="display:none">
 </body>
 </html>

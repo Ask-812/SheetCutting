@@ -823,6 +823,131 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Sample project loaded — 6 sizes on 2 sheets (Plywood + MDF).');
     });
 
+    // ─── Save / Load Project ─────────────────────────────────────────────────
+
+    const loadProjectFile = document.getElementById('loadProjectFile');
+
+    document.getElementById('saveProjectBtn').addEventListener('click', () => {
+        const project = {
+            version: 1,
+            sheets: state.sheets,
+            nextSheetId: state.nextSheetId,
+            pieceSizes: state.pieceSizes,
+            nextId: state.nextId,
+            settings: {
+                kerf: parseFloat(kerfInput.value) || 0,
+                allowRotation: rotationInput.checked,
+                topN: parseInt(topNInput.value, 10) || 10,
+                algoMode: algoModeSelect.value
+            }
+        };
+        const json = JSON.stringify(project, null, 2);
+        const name = 'cutting_project_' + new Date().toISOString().slice(0, 10) + '.json';
+        downloadFile(name, json, 'application/json');
+        showToast('Project saved as ' + name);
+    });
+
+    document.getElementById('loadProjectBtn').addEventListener('click', () => {
+        loadProjectFile.click();
+    });
+
+    loadProjectFile.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const project = JSON.parse(ev.target.result);
+                if (!project.sheets || !project.pieceSizes) {
+                    showToast('Invalid project file.', 'error');
+                    return;
+                }
+                state.sheets = project.sheets;
+                state.nextSheetId = project.nextSheetId || project.sheets.length + 1;
+                state.pieceSizes = project.pieceSizes;
+                state.nextId = project.nextId || project.pieceSizes.length + 1;
+
+                if (project.settings) {
+                    kerfInput.value = project.settings.kerf || 0;
+                    rotationInput.checked = project.settings.allowRotation !== false;
+                    topNInput.value = project.settings.topN || 10;
+                    algoModeSelect.value = project.settings.algoMode || 'advanced';
+                }
+
+                renderSheetTable();
+                renderRectTable();
+                resultsDiv.classList.add('hidden');
+                showToast(`Project loaded — ${state.sheets.length} sheet(s), ${state.pieceSizes.length} piece size(s).`);
+            } catch (err) {
+                showToast('Failed to parse project file: ' + err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+        loadProjectFile.value = '';
+    });
+
+    // ─── Auto-save to localStorage ───────────────────────────────────────────
+
+    function autoSave() {
+        try {
+            const data = {
+                sheets: state.sheets,
+                nextSheetId: state.nextSheetId,
+                pieceSizes: state.pieceSizes,
+                nextId: state.nextId,
+                settings: {
+                    kerf: parseFloat(kerfInput.value) || 0,
+                    allowRotation: rotationInput.checked,
+                    topN: parseInt(topNInput.value, 10) || 10,
+                    algoMode: algoModeSelect.value
+                }
+            };
+            localStorage.setItem('sheetCuttingProject', JSON.stringify(data));
+        } catch (e) { /* ignore quota errors */ }
+    }
+
+    function autoLoad() {
+        try {
+            const raw = localStorage.getItem('sheetCuttingProject');
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data.sheets && data.sheets.length > 0) {
+                state.sheets = data.sheets;
+                state.nextSheetId = data.nextSheetId || data.sheets.length + 1;
+            }
+            if (data.pieceSizes && data.pieceSizes.length > 0) {
+                state.pieceSizes = data.pieceSizes;
+                state.nextId = data.nextId || data.pieceSizes.length + 1;
+            }
+            if (data.settings) {
+                kerfInput.value = data.settings.kerf || 0;
+                rotationInput.checked = data.settings.allowRotation !== false;
+                topNInput.value = data.settings.topN || 10;
+                algoModeSelect.value = data.settings.algoMode || 'advanced';
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // Auto-save on any change
+    const autoSaveDebounced = (() => {
+        let timer;
+        return () => { clearTimeout(timer); timer = setTimeout(autoSave, 500); };
+    })();
+
+    // Watch for changes
+    [kerfInput, topNInput].forEach(el => el.addEventListener('input', autoSaveDebounced));
+    rotationInput.addEventListener('change', autoSaveDebounced);
+    algoModeSelect.addEventListener('change', autoSaveDebounced);
+
+    // Patch renderSheetTable and renderRectTable to auto-save
+    const _origRenderSheetTable = renderSheetTable;
+    renderSheetTable = function() { _origRenderSheetTable(); autoSaveDebounced(); };
+    const _origRenderRectTable = renderRectTable;
+    renderRectTable = function() { _origRenderRectTable(); autoSaveDebounced(); };
+
+    // Load previous session on startup
+    autoLoad();
+
     // Initial render
     renderSheetTable();
     renderRectTable();
