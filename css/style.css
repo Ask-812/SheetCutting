@@ -248,6 +248,27 @@ tbody tr:hover { background: #f8fafc; }
 }
 .action-row .btn-lg { margin-left: auto; }
 
+/* ─── Canvas Tooltip ──────────────────────────────────────────────────────── */
+.canvas-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.92);
+    color: #f1f5f9;
+    font-size: .78rem;
+    line-height: 1.45;
+    padding: .45rem .65rem;
+    border-radius: 6px;
+    z-index: 20;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    transition: opacity .1s;
+}
+.canvas-wrap canvas { cursor: crosshair; }
+.canvas-tooltip.hidden { opacity: 0; }
+.canvas-tooltip strong { color: #fff; font-size: .82rem; }
+.tip-rotated { color: #fbbf24; font-size: .72rem; }
+.tip-gap { color: #f87171; font-weight: 600; }
+
 /* ─── Sheet Tabs ──────────────────────────────────────────────────────────── */
 .sheet-tab-bar {
     display: flex;

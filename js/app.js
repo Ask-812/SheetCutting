@@ -368,12 +368,106 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPlacementTable(layout);
     }
 
+    // ─── Canvas Hover Tooltip ─────────────────────────────────────────────────
+
+    let canvasScale = 1;
+    let canvasLayout = null;
+
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'canvas-tooltip hidden';
+    canvasWrap.style.position = 'relative';
+    canvasWrap.appendChild(tooltip);
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (!canvasLayout) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) / canvasScale;
+        const my = (e.clientY - rect.top) / canvasScale;
+        const layout = canvasLayout;
+
+        // Check if hovering over a placed piece
+        let hoveredPiece = null;
+        for (let i = layout.placements.length - 1; i >= 0; i--) {
+            const p = layout.placements[i];
+            if (mx >= p.x && mx <= p.x + p.w && my >= p.y && my <= p.y + p.h) {
+                hoveredPiece = p;
+                break;
+            }
+        }
+
+        if (hoveredPiece) {
+            const p = hoveredPiece;
+            tooltip.innerHTML = `<strong>${sanitize(p.label)}</strong><br>` +
+                `Size: ${p.w} × ${p.h}<br>` +
+                `Position: (${p.x.toFixed(1)}, ${p.y.toFixed(1)})` +
+                (p.rotated ? '<br><span class="tip-rotated">Rotated 90°</span>' : '');
+            tooltip.classList.remove('hidden');
+        } else if (mx >= 0 && mx <= layout.sheetW && my >= 0 && my <= layout.sheetH) {
+            // Hovering over empty/waste space — compute gap dimensions
+            const gap = computeGapAt(mx, my, layout);
+            if (gap) {
+                tooltip.innerHTML = `<span class="tip-gap">Gap / Waste</span><br>` +
+                    `Width: ${gap.w.toFixed(1)}<br>` +
+                    `Height: ${gap.h.toFixed(1)}<br>` +
+                    `Area: ${(gap.w * gap.h).toFixed(0)}`;
+                tooltip.classList.remove('hidden');
+            } else {
+                tooltip.classList.add('hidden');
+            }
+        } else {
+            tooltip.classList.add('hidden');
+        }
+
+        // Position tooltip near cursor
+        const tx = e.clientX - rect.left + 12;
+        const ty = e.clientY - rect.top - 10;
+        tooltip.style.left = Math.min(tx, canvas.width - tooltip.offsetWidth - 5) + 'px';
+        tooltip.style.top = Math.min(ty, canvas.height - tooltip.offsetHeight - 5) + 'px';
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        tooltip.classList.add('hidden');
+    });
+
+    function computeGapAt(mx, my, layout) {
+        // Find the bounding box of free space at (mx, my)
+        // by scanning outward to nearest piece edges or sheet edges
+        let left = 0, right = layout.sheetW, top = 0, bottom = layout.sheetH;
+
+        for (const p of layout.placements) {
+            // Pieces that constrain horizontally (same vertical band)
+            if (my >= p.y && my < p.y + p.h) {
+                if (p.x + p.w <= mx) left = Math.max(left, p.x + p.w);
+                if (p.x >= mx) right = Math.min(right, p.x);
+            }
+        }
+
+        for (const p of layout.placements) {
+            // Pieces that constrain vertically (within our horizontal band)
+            if (p.x < right && p.x + p.w > left) {
+                if (p.y + p.h <= my) top = Math.max(top, p.y + p.h);
+                if (p.y >= my) bottom = Math.min(bottom, p.y);
+            }
+        }
+
+        const w = right - left;
+        const h = bottom - top;
+        if (w > 0.5 && h > 0.5) {
+            return { x: left, y: top, w, h };
+        }
+        return null;
+    }
+
     // ─── Canvas Rendering ────────────────────────────────────────────────────
 
     function renderCanvas(layout) {
         const maxCanvasW = canvasWrap.clientWidth - 20;
         const maxCanvasH = 600;
         const scale = Math.min(maxCanvasW / layout.sheetW, maxCanvasH / layout.sheetH);
+
+        canvasScale = scale;
+        canvasLayout = layout;
 
         canvas.width = Math.ceil(layout.sheetW * scale);
         canvas.height = Math.ceil(layout.sheetH * scale);
