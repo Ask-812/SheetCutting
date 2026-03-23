@@ -32,7 +32,6 @@
                 <div class="form-group btn-group">
                     <button class="btn btn-primary" id="addSheet">Add Sheet</button>
                     <button class="btn btn-secondary" id="importSheetsBtn" title="Import from CSV / Excel">&#128194; Import CSV</button>
-                    <input type="file" id="importSheetsFile" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
                 </div>
             </div>
             <p class="import-hint">CSV format: <code>Label, Width, Height</code> (one per line). Tab-separated from Excel also works.</p>
@@ -100,7 +99,6 @@
                 <div class="form-group btn-group">
                     <button class="btn btn-primary" id="addRect">Add Size</button>
                     <button class="btn btn-secondary" id="importPiecesBtn" title="Import from CSV / Excel">&#128194; Import CSV</button>
-                    <input type="file" id="importPiecesFile" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
                 </div>
             </div>
             <p class="import-hint">CSV format: <code>Label, Width, Height</code> (one per line). Tab-separated from Excel also works.</p>
@@ -195,5 +193,9 @@
     <script src="js/packer.js"></script>
     <script src="js/optimizer.js"></script>
     <script src="js/app.js"></script>
+
+    <!-- Hidden file inputs for CSV import (at body level to avoid click issues) -->
+    <input type="file" id="importSheetsFile" accept=".csv,.tsv,.txt" style="display:none">
+    <input type="file" id="importPiecesFile" accept=".csv,.tsv,.txt" style="display:none">
 </body>
 </html>
