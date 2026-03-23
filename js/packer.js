@@ -1,7 +1,7 @@
 /**
  * 2D Sheet Cutting Optimizer
  * Implements MaxRects, Guillotine, and Shelf bin packing algorithms
- * with gap, kerf, and boundary margin constraints.
+ * with kerf constraint.
  */
 
 // ─── Geometry Helpers ────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ class MaxRectsPacker {
     }
 
     /**
-     * Try to insert a rectangle with effective dimensions (includes kerf+gap).
+     * Try to insert a rectangle with effective dimensions (includes kerf).
      * Returns placement {x, y, w, h, rotated} or null.
      */
     insert(effW, effH, allowRotation) {
@@ -370,9 +370,7 @@ class ShelfPacker {
  * @param {number} params.sheetW           – full sheet width
  * @param {number} params.sheetH           – full sheet height
  * @param {Array}  params.pieceSizes       – [{id, w, h, label}]  (unique sizes, not qty)
- * @param {number} params.gap              – minimum gap between pieces
  * @param {number} params.kerf             – cutting kerf width
- * @param {number} params.boundaryMargin   – margin from sheet edges
  * @param {boolean} params.allowRotation
  * @param {string} params.algorithm        – 'maxrects' | 'guillotine' | 'shelf'
  * @param {string} params.heuristic        – algorithm-specific heuristic
@@ -383,20 +381,19 @@ class ShelfPacker {
 function generateLayout(params) {
     const {
         sheetW, sheetH, pieceSizes,
-        gap, kerf, boundaryMargin,
+        kerf,
         allowRotation, algorithm, heuristic,
         fillOrder, splitRule
     } = params;
 
-    const margin = boundaryMargin;
-    const usableW = sheetW - 2 * margin;
-    const usableH = sheetH - 2 * margin;
+    const usableW = sheetW;
+    const usableH = sheetH;
 
     if (usableW <= 0 || usableH <= 0) {
         return { placements: [], totalUsed: 0, waste: sheetW * sheetH, utilization: 0, quantities: {} };
     }
 
-    const extra = kerf + gap;
+    const extra = kerf || 0;
 
     // Sort piece sizes to determine insertion priority
     let sorted = pieceSizes.map(p => ({ ...p }));
@@ -465,8 +462,8 @@ function generateLayout(params) {
                         id: pieceCounter++,
                         sizeId: size.id,
                         label: size.label,
-                        x: result.x + margin,
-                        y: result.y + margin,
+                        x: result.x,
+                        y: result.y,
                         w: actualW,
                         h: actualH,
                         rotated: result.rotated,
@@ -494,8 +491,8 @@ function generateLayout(params) {
                         id: pieceCounter++,
                         sizeId: size.id,
                         label: size.label,
-                        x: result.x + margin,
-                        y: result.y + margin,
+                        x: result.x,
+                        y: result.y,
                         w: actualW,
                         h: actualH,
                         rotated: result.rotated,
@@ -525,8 +522,8 @@ function generateLayout(params) {
                         id: pieceCounter++,
                         sizeId: size.id,
                         label: size.label,
-                        x: result.x + margin,
-                        y: result.y + margin,
+                        x: result.x,
+                        y: result.y,
                         w: actualW,
                         h: actualH,
                         rotated: result.rotated,

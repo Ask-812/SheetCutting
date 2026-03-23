@@ -9,36 +9,57 @@
 <body>
     <header>
         <h1>2D Sheet Cutting Optimizer</h1>
-        <p class="subtitle">Auto-fill sheets with optimal piece quantities &mdash; gap &amp; kerf aware</p>
+        <p class="subtitle">Auto-fill sheets with optimal piece quantities &mdash; kerf aware, multi-sheet support</p>
     </header>
 
     <main>
         <!-- ─── Input Section ─────────────────────────────────────────── -->
         <section class="card" id="inputSection">
-            <h2>Sheet &amp; Constraints</h2>
+            <h2>Master Sheets</h2>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="sheetW">Sheet Width</label>
-                    <input type="number" id="sheetW" min="1" step="any" placeholder="e.g. 1000">
+                    <label for="sheetLabel">Sheet Label</label>
+                    <input type="text" id="sheetLabel" placeholder="e.g. Plywood 8x4" maxlength="40">
                 </div>
                 <div class="form-group">
-                    <label for="sheetH">Sheet Height</label>
-                    <input type="number" id="sheetH" min="1" step="any" placeholder="e.g. 600">
+                    <label for="sheetW">Width</label>
+                    <input type="number" id="sheetW" min="1" step="any" placeholder="e.g. 2440">
                 </div>
                 <div class="form-group">
-                    <label for="gap">Gap Between Pieces</label>
-                    <input type="number" id="gap" min="0" step="any" value="0" placeholder="e.g. 2">
+                    <label for="sheetH">Height</label>
+                    <input type="number" id="sheetH" min="1" step="any" placeholder="e.g. 1220">
                 </div>
+                <div class="form-group btn-group">
+                    <button class="btn btn-primary" id="addSheet">Add Sheet</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table id="sheetTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Label</th>
+                            <th>Width</th>
+                            <th>Height</th>
+                            <th>Area</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sheetTableBody">
+                        <tr><td colspan="6" class="empty-msg">No master sheets added yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h2>Constraints</h2>
+            <div class="form-row">
                 <div class="form-group">
                     <label for="kerf">Kerf Width</label>
                     <input type="number" id="kerf" min="0" step="any" value="0" placeholder="e.g. 3">
                 </div>
                 <div class="form-group">
-                    <label for="boundaryMargin">Boundary Margin</label>
-                    <input type="number" id="boundaryMargin" min="0" step="any" value="0" placeholder="e.g. 5">
-                </div>
-                <div class="form-group">
-                    <label for="topN">Top N Layouts</label>
+                    <label for="topN">Top N Layouts (per sheet)</label>
                     <input type="number" id="topN" min="1" max="50" value="10">
                 </div>
                 <div class="form-group checkbox-group">
@@ -150,7 +171,7 @@
     </main>
 
     <footer>
-        <p>2D Cutting Stock / Bin Packing Optimizer &mdash; MaxRects, Guillotine &amp; Shelf algorithms with kerf &amp; gap support</p>
+        <p>2D Cutting Stock / Bin Packing Optimizer &mdash; MaxRects, Guillotine &amp; Shelf algorithms with kerf support</p>
     </footer>
 
     <!-- Progress overlay -->

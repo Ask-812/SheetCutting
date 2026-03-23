@@ -1,39 +1,99 @@
 /**
  * Sheet Cutting Optimizer – Application Logic & UI
  * Auto-fill mode: user provides piece sizes, algorithm decides quantities.
+ * Supports multiple master sheets.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
     const state = {
+        sheets: [],       // master sheet definitions [{id, w, h, label}]
+        nextSheetId: 1,
         pieceSizes: [],   // unique piece size definitions
         nextId: 1,
-        results: [],
+        results: [],      // array of {sheet, layouts[]}
+        activeSheet: 0,
         activeLayout: null
     };
 
     // ─── DOM References ──────────────────────────────────────────────────────
-    const sheetWInput    = document.getElementById('sheetW');
-    const sheetHInput    = document.getElementById('sheetH');
-    const gapInput       = document.getElementById('gap');
-    const kerfInput      = document.getElementById('kerf');
-    const marginInput    = document.getElementById('boundaryMargin');
-    const rotationInput  = document.getElementById('allowRotation');
-    const rectWInput     = document.getElementById('rectW');
-    const rectHInput     = document.getElementById('rectH');
-    const rectLabelInput = document.getElementById('rectLabel');
-    const addRectBtn     = document.getElementById('addRect');
-    const clearRectsBtn  = document.getElementById('clearRects');
-    const rectTableBody  = document.getElementById('rectTableBody');
-    const optimizeBtn    = document.getElementById('optimizeBtn');
-    const resultsDiv     = document.getElementById('results');
-    const layoutListDiv  = document.getElementById('layoutList');
-    const canvasWrap     = document.getElementById('canvasWrap');
-    const canvas         = document.getElementById('packingCanvas');
-    const ctx            = canvas.getContext('2d');
-    const layoutInfo     = document.getElementById('layoutInfo');
-    const placementTable = document.getElementById('placementTableBody');
-    const topNInput      = document.getElementById('topN');
-    const quantitySummary = document.getElementById('quantitySummary');
+    const sheetWInput      = document.getElementById('sheetW');
+    const sheetHInput      = document.getElementById('sheetH');
+    const sheetLabelInput  = document.getElementById('sheetLabel');
+    const addSheetBtn      = document.getElementById('addSheet');
+    const sheetTableBody   = document.getElementById('sheetTableBody');
+    const kerfInput        = document.getElementById('kerf');
+    const rotationInput    = document.getElementById('allowRotation');
+    const rectWInput       = document.getElementById('rectW');
+    const rectHInput       = document.getElementById('rectH');
+    const rectLabelInput   = document.getElementById('rectLabel');
+    const addRectBtn       = document.getElementById('addRect');
+    const clearRectsBtn    = document.getElementById('clearRects');
+    const rectTableBody    = document.getElementById('rectTableBody');
+    const optimizeBtn      = document.getElementById('optimizeBtn');
+    const resultsDiv       = document.getElementById('results');
+    const layoutListDiv    = document.getElementById('layoutList');
+    const canvasWrap       = document.getElementById('canvasWrap');
+    const canvas           = document.getElementById('packingCanvas');
+    const ctx              = canvas.getContext('2d');
+    const layoutInfo       = document.getElementById('layoutInfo');
+    const placementTable   = document.getElementById('placementTableBody');
+    const topNInput        = document.getElementById('topN');
+    const quantitySummary  = document.getElementById('quantitySummary');
+
+    // ─── Sheet Management ────────────────────────────────────────────────────
+
+    addSheetBtn.addEventListener('click', () => {
+        const w = parseFloat(sheetWInput.value);
+        const h = parseFloat(sheetHInput.value);
+        const label = sheetLabelInput.value.trim();
+
+        if (!w || w <= 0 || !h || h <= 0) {
+            showToast('Enter valid sheet width and height.', 'error');
+            return;
+        }
+
+        state.sheets.push({
+            id: state.nextSheetId++,
+            w, h,
+            label: label || `Sheet ${state.nextSheetId - 1}`
+        });
+
+        renderSheetTable();
+        sheetWInput.value = '';
+        sheetHInput.value = '';
+        sheetLabelInput.value = '';
+        sheetLabelInput.focus();
+    });
+
+    [sheetWInput, sheetHInput, sheetLabelInput].forEach(el => {
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') addSheetBtn.click();
+        });
+    });
+
+    function renderSheetTable() {
+        sheetTableBody.innerHTML = '';
+        if (state.sheets.length === 0) {
+            sheetTableBody.innerHTML = '<tr><td colspan="6" class="empty-msg">No master sheets added yet.</td></tr>';
+            return;
+        }
+        state.sheets.forEach((s, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${s.id}</td>
+                <td>${sanitize(s.label)}</td>
+                <td>${s.w}</td>
+                <td>${s.h}</td>
+                <td>${(s.w * s.h).toLocaleString()}</td>
+                <td><button class="btn btn-sm btn-danger" data-idx="${i}">&times;</button></td>
+            `;
+            tr.querySelector('button').addEventListener('click', () => {
+                state.sheets.splice(i, 1);
+                renderSheetTable();
+            });
+            sheetTableBody.appendChild(tr);
+        });
+    }
 
     // ─── Piece Size Management ───────────────────────────────────────────────
 
@@ -116,17 +176,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressFitness = document.getElementById('progressFitness');
 
     optimizeBtn.addEventListener('click', () => {
-        const sheetW = parseFloat(sheetWInput.value);
-        const sheetH = parseFloat(sheetHInput.value);
-        const gap = parseFloat(gapInput.value) || 0;
         const kerf = parseFloat(kerfInput.value) || 0;
-        const boundaryMargin = parseFloat(marginInput.value) || 0;
         const allowRotation = rotationInput.checked;
         const topN = parseInt(topNInput.value, 10) || 10;
         const mode = algoModeSelect.value;
 
-        if (!sheetW || sheetW <= 0 || !sheetH || sheetH <= 0) {
-            showToast('Enter valid sheet dimensions.', 'error');
+        if (state.sheets.length === 0) {
+            showToast('Add at least one master sheet.', 'error');
             return;
         }
         if (state.pieceSizes.length === 0) {
@@ -134,53 +190,62 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const params = {
-            sheetW, sheetH,
-            pieceSizes: state.pieceSizes.map(r => ({ id: r.id, w: r.w, h: r.h, label: r.label })),
-            gap, kerf, boundaryMargin, allowRotation
-        };
+        const pieceSizesCopy = state.pieceSizes.map(r => ({ id: r.id, w: r.w, h: r.h, label: r.label }));
 
         optimizeBtn.disabled = true;
 
         if (mode === 'advanced') {
-            // ── Advanced: GA + SA + ILS pipeline ──
             progressOverlay.classList.remove('hidden');
             progressBar.style.width = '0%';
             progressTitle.textContent = 'Initializing...';
             progressDetail.textContent = '';
             progressFitness.textContent = '';
 
-            // Use chunked execution via setTimeout to show progress
             setTimeout(() => {
                 try {
-                    const optimizer = new PackingOptimizer(params);
-                    const layouts = optimizer.optimize({
-                        topN,
-                        onProgress: (phase, pct, fit, msg) => {
-                            const phaseWeights = { ga: 0.45, sa: 0.30, ils: 0.05, sa2: 0.10, heuristics: 0.05, done: 0.05 };
-                            const phaseStarts = { ga: 0, sa: 0.45, ils: 0.75, sa2: 0.80, heuristics: 0.90, done: 0.95 };
-                            const totalPct = ((phaseStarts[phase] || 0) + (phaseWeights[phase] || 0) * pct) * 100;
-                            progressBar.style.width = Math.min(totalPct, 100) + '%';
+                    const allResults = [];
+                    const totalSheets = state.sheets.length;
 
-                            const phaseNames = {
-                                ga: 'Genetic Algorithm',
-                                sa: 'Simulated Annealing',
-                                ils: 'Local Search',
-                                sa2: 'Exploring Alternatives',
-                                heuristics: 'Heuristic Sweep',
-                                done: 'Complete'
-                            };
-                            progressTitle.textContent = phaseNames[phase] || phase;
-                            progressDetail.textContent = msg || '';
-                            if (fit > 0) {
-                                progressFitness.textContent = `Best utilization: ${fit.toFixed(2)}%`;
+                    state.sheets.forEach((sheet, si) => {
+                        const params = {
+                            sheetW: sheet.w, sheetH: sheet.h,
+                            pieceSizes: pieceSizesCopy,
+                            kerf, allowRotation
+                        };
+
+                        const optimizer = new PackingOptimizer(params);
+                        const layouts = optimizer.optimize({
+                            topN,
+                            onProgress: (phase, pct, fit, msg) => {
+                                const phaseWeights = { ga: 0.45, sa: 0.30, ils: 0.05, sa2: 0.10, heuristics: 0.05, done: 0.05 };
+                                const phaseStarts = { ga: 0, sa: 0.45, ils: 0.75, sa2: 0.80, heuristics: 0.90, done: 0.95 };
+                                const sheetPct = ((phaseStarts[phase] || 0) + (phaseWeights[phase] || 0) * pct);
+                                const totalPct = ((si + sheetPct) / totalSheets) * 100;
+                                progressBar.style.width = Math.min(totalPct, 100) + '%';
+
+                                const phaseNames = {
+                                    ga: 'Genetic Algorithm',
+                                    sa: 'Simulated Annealing',
+                                    ils: 'Local Search',
+                                    sa2: 'Exploring Alternatives',
+                                    heuristics: 'Heuristic Sweep',
+                                    done: 'Complete'
+                                };
+                                progressTitle.textContent = `${sanitize(sheet.label)}: ${phaseNames[phase] || phase}`;
+                                progressDetail.textContent = msg || '';
+                                if (fit > 0) {
+                                    progressFitness.textContent = `Best utilization: ${fit.toFixed(2)}%`;
+                                }
                             }
-                        }
+                        });
+
+                        allResults.push({ sheet, layouts });
                     });
 
-                    state.results = layouts;
-                    renderResults();
-                    if (layouts.length > 0) selectLayout(0);
+                    state.results = allResults;
+                    state.activeSheet = 0;
+                    renderSheetTabs();
+                    switchSheet(0);
                     resultsDiv.classList.remove('hidden');
                     setTimeout(() => resultsDiv.scrollIntoView({ behavior: 'smooth' }), 100);
                 } catch (err) {
@@ -194,14 +259,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 80);
 
         } else {
-            // ── Fast: heuristic-only sweep ──
-            optimizeBtn.textContent = 'Filling sheet...';
+            optimizeBtn.textContent = 'Filling sheets...';
             setTimeout(() => {
                 try {
-                    const layouts = generateTopLayouts(params, topN);
-                    state.results = layouts;
-                    renderResults();
-                    if (layouts.length > 0) selectLayout(0);
+                    const allResults = [];
+
+                    state.sheets.forEach(sheet => {
+                        const params = {
+                            sheetW: sheet.w, sheetH: sheet.h,
+                            pieceSizes: pieceSizesCopy,
+                            kerf, allowRotation
+                        };
+                        const layouts = generateTopLayouts(params, topN);
+                        allResults.push({ sheet, layouts });
+                    });
+
+                    state.results = allResults;
+                    state.activeSheet = 0;
+                    renderSheetTabs();
+                    switchSheet(0);
                     resultsDiv.classList.remove('hidden');
                     resultsDiv.scrollIntoView({ behavior: 'smooth' });
                 } catch (err) {
@@ -215,11 +291,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ─── Results Rendering ───────────────────────────────────────────────────
+    // ─── Sheet Tabs & Results Rendering ─────────────────────────────────────
 
-    function renderResults() {
+    function renderSheetTabs() {
+        let tabBar = document.getElementById('sheetTabBar');
+        if (!tabBar) {
+            tabBar = document.createElement('div');
+            tabBar.id = 'sheetTabBar';
+            tabBar.className = 'sheet-tab-bar';
+            // Insert above the results-container
+            const container = document.querySelector('.results-container');
+            container.parentNode.insertBefore(tabBar, container);
+        }
+        tabBar.innerHTML = '';
+
+        if (state.results.length <= 1) {
+            // Single sheet – no tabs needed, just show sheet label
+            if (state.results.length === 1) {
+                const label = document.createElement('div');
+                label.className = 'sheet-tab-single';
+                label.textContent = sanitize(state.results[0].sheet.label) +
+                    ` (${state.results[0].sheet.w} × ${state.results[0].sheet.h})`;
+                tabBar.appendChild(label);
+            }
+        } else {
+            state.results.forEach((r, i) => {
+                const tab = document.createElement('button');
+                tab.className = 'sheet-tab' + (i === state.activeSheet ? ' active' : '');
+                tab.textContent = sanitize(r.sheet.label);
+                tab.title = `${r.sheet.w} × ${r.sheet.h}`;
+                tab.addEventListener('click', () => switchSheet(i));
+                tabBar.appendChild(tab);
+            });
+        }
+    }
+
+    function switchSheet(sheetIdx) {
+        state.activeSheet = sheetIdx;
+        // Update tab active state
+        document.querySelectorAll('.sheet-tab').forEach((t, i) => {
+            t.classList.toggle('active', i === sheetIdx);
+        });
+        const sheetResult = state.results[sheetIdx];
+        renderResults(sheetResult.layouts);
+        if (sheetResult.layouts.length > 0) selectLayout(0);
+    }
+
+    function renderResults(layouts) {
         layoutListDiv.innerHTML = '';
-        state.results.forEach((layout, i) => {
+        layouts.forEach((layout, i) => {
             const card = document.createElement('div');
             card.className = 'layout-card' + (i === 0 ? ' active' : '');
             card.dataset.idx = i;
@@ -241,7 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.layout-card').forEach((c, i) => {
             c.classList.toggle('active', i === idx);
         });
-        const layout = state.results[idx];
+        const sheetResult = state.results[state.activeSheet];
+        const layout = sheetResult.layouts[idx];
         renderCanvas(layout);
         renderLayoutInfo(layout);
         renderPlacementTable(layout);
@@ -265,20 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 2;
         ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
-
-        // Boundary margin zone
-        const margin = parseFloat(marginInput.value) || 0;
-        if (margin > 0) {
-            ctx.strokeStyle = '#aaa';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.strokeRect(
-                margin * scale, margin * scale,
-                (layout.sheetW - 2 * margin) * scale,
-                (layout.sheetH - 2 * margin) * scale
-            );
-            ctx.setLineDash([]);
-        }
 
         // Draw placed rectangles – color by size type
         const sizeIds = [...new Set(layout.placements.map(p => p.sizeId))];
@@ -416,28 +523,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('exportCSV').addEventListener('click', () => {
         if (!state.results.length) return;
-        const layout = state.results[state.activeLayout || 0];
+        const sheetResult = state.results[state.activeSheet];
+        const layout = sheetResult.layouts[state.activeLayout || 0];
         let csv = 'ID,Label,X,Y,Width,Height,Rotated,Area\n';
         layout.placements.forEach(p => {
             csv += `${p.id},"${p.label}",${p.x.toFixed(2)},${p.y.toFixed(2)},${p.w},${p.h},${p.rotated},${p.w * p.h}\n`;
         });
-        downloadFile(`layout_${(state.activeLayout || 0) + 1}.csv`, csv, 'text/csv');
+        downloadFile(`layout_${sanitize(sheetResult.sheet.label)}_${(state.activeLayout || 0) + 1}.csv`, csv, 'text/csv');
     });
 
     document.getElementById('exportPNG').addEventListener('click', () => {
         if (!state.results.length) return;
+        const sheetResult = state.results[state.activeSheet];
         const link = document.createElement('a');
-        link.download = `layout_${(state.activeLayout || 0) + 1}.png`;
+        link.download = `layout_${sanitize(sheetResult.sheet.label)}_${(state.activeLayout || 0) + 1}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
     });
 
     document.getElementById('exportAllCSV').addEventListener('click', () => {
         if (!state.results.length) return;
-        let csv = 'Layout#,Utilization%,PlacedCount,Strategy,ID,Label,X,Y,Width,Height,Rotated,Area\n';
-        state.results.forEach((layout, li) => {
-            layout.placements.forEach(p => {
-                csv += `${li + 1},${layout.utilization.toFixed(2)},${layout.placedCount},"${layout.strategyLabel}",${p.id},"${p.label}",${p.x.toFixed(2)},${p.y.toFixed(2)},${p.w},${p.h},${p.rotated},${p.w * p.h}\n`;
+        let csv = 'Sheet,SheetSize,Layout#,Utilization%,PlacedCount,Strategy,ID,Label,X,Y,Width,Height,Rotated,Area\n';
+        state.results.forEach(sr => {
+            sr.layouts.forEach((layout, li) => {
+                layout.placements.forEach(p => {
+                    csv += `"${sr.sheet.label}","${sr.sheet.w}x${sr.sheet.h}",${li + 1},${layout.utilization.toFixed(2)},${layout.placedCount},"${layout.strategyLabel}",${p.id},"${p.label}",${p.x.toFixed(2)},${p.y.toFixed(2)},${p.w},${p.h},${p.rotated},${p.w * p.h}\n`;
+                });
             });
         });
         downloadFile('all_layouts.csv', csv, 'text/csv');
@@ -484,25 +595,29 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         state.nextId = 5;
 
-        sheetWInput.value = 1000;
-        sheetHInput.value = 600;
-        gapInput.value = 2;
+        state.sheets = [
+            { id: 1, w: 1000, h: 600, label: 'Standard Sheet' }
+        ];
+        state.nextSheetId = 2;
+
         kerfInput.value = 3;
-        marginInput.value = 5;
         rotationInput.checked = true;
 
+        renderSheetTable();
         renderRectTable();
-        showToast('Demo sizes loaded — 4 different sizes to auto-fill.');
+        showToast('Demo sizes loaded — 4 sizes on 1 sheet.');
     });
 
     // ─── Sample Project ──────────────────────────────────────────────────────
 
     document.getElementById('loadSample').addEventListener('click', () => {
-        sheetWInput.value = 2440;
-        sheetHInput.value = 1220;
-        gapInput.value = 3;
+        state.sheets = [
+            { id: 1, w: 2440, h: 1220, label: 'Plywood 8×4' },
+            { id: 2, w: 1830, h: 915,  label: 'MDF 6×3' },
+        ];
+        state.nextSheetId = 3;
+
         kerfInput.value = 4;
-        marginInput.value = 10;
         rotationInput.checked = true;
 
         state.pieceSizes = [
@@ -514,10 +629,12 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 6, w: 150, h: 80,  label: 'Bracket' },
         ];
         state.nextId = 7;
+        renderSheetTable();
         renderRectTable();
-        showToast('Sample project loaded — 6 sizes on a 2440×1220 sheet.');
+        showToast('Sample project loaded — 6 sizes on 2 sheets (Plywood + MDF).');
     });
 
     // Initial render
+    renderSheetTable();
     renderRectTable();
 });

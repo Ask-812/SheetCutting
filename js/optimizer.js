@@ -16,14 +16,12 @@ class PackingOptimizer {
         this.sheetW = params.sheetW;
         this.sheetH = params.sheetH;
         this.pieceSizes = params.pieceSizes;
-        this.gap = params.gap || 0;
         this.kerf = params.kerf || 0;
-        this.margin = params.boundaryMargin || 0;
         this.allowRotation = params.allowRotation !== false;
 
-        this.usableW = this.sheetW - 2 * this.margin;
-        this.usableH = this.sheetH - 2 * this.margin;
-        this.extra = this.kerf + this.gap;
+        this.usableW = this.sheetW;
+        this.usableH = this.sheetH;
+        this.extra = this.kerf;
 
         this.numSizes = this.pieceSizes.length;
 
@@ -80,7 +78,7 @@ class PackingOptimizer {
                 qtyMap[s.id]++;
                 placements.push({
                     id: pid++, sizeId: s.id, label: s.label,
-                    x: res.x + this.margin, y: res.y + this.margin,
+                    x: res.x, y: res.y,
                     w, h, rotated: res.rotated,
                     origW: s.w, origH: s.h
                 });
@@ -640,8 +638,7 @@ class PackingOptimizer {
         const heuristicResults = generateTopLayouts({
             sheetW: this.sheetW, sheetH: this.sheetH,
             pieceSizes: this.pieceSizes,
-            gap: this.gap, kerf: this.kerf,
-            boundaryMargin: this.margin,
+            kerf: this.kerf,
             allowRotation: this.allowRotation
         }, topN);
         for (const hr of heuristicResults) {

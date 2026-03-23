@@ -248,6 +248,33 @@ tbody tr:hover { background: #f8fafc; }
 }
 .action-row .btn-lg { margin-left: auto; }
 
+/* ─── Sheet Tabs ──────────────────────────────────────────────────────────── */
+.sheet-tab-bar {
+    display: flex;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.sheet-tab {
+    padding: .5rem 1rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card-bg);
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    transition: border-color .15s, background .15s, color .15s;
+    color: var(--text);
+}
+.sheet-tab:hover { border-color: var(--primary); background: #f0f7ff; }
+.sheet-tab.active { border-color: var(--primary); background: var(--primary); color: #fff; }
+.sheet-tab-single {
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--text);
+    padding: .4rem 0;
+}
+
 /* ─── Results Layout ──────────────────────────────────────────────────────── */
 .results-container {
     display: flex;
